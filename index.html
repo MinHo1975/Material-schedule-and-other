@@ -603,6 +603,7 @@ input[type="date"].form-input{color-scheme:dark;}
         </div>
       </div>
       <div class="section-body">
+        <div style="padding:6px 0 10px 0;font-size:13px;color:var(--accent3);font-weight:600;" id="vendors-count-display">총 등록 업체 수: 0건</div>
         <div class="search-bar">
           <div class="search-input-wrap" style="flex:1;">
             <span class="search-icon">🔍</span>
@@ -1237,6 +1238,24 @@ async function saveItem() {
     items.unshift(item);
   }
   await idbPut('items', item);
+  // ★ 품목DB 자동 업데이트: 품번이 DB에 있고 빈 필드가 있으면 채워줌
+  if (item.partNo) {
+    const dbIdx = itemDb.findIndex(d => String(d.partNo||'').trim() === String(item.partNo).trim());
+    if (dbIdx >= 0) {
+      let dbItem = itemDb[dbIdx];
+      let updated = false;
+      if (!dbItem.partName && item.partName) { dbItem.partName = item.partName; updated = true; }
+      if (!dbItem.material && item.material) { dbItem.material = item.material; updated = true; }
+      if (!dbItem.spec && item.spec) { dbItem.spec = item.spec; updated = true; }
+      if (!dbItem.vendor && item.vendor) { dbItem.vendor = item.vendor; updated = true; }
+      if (updated) {
+        dbItem.updatedAt = new Date().toISOString();
+        itemDb[dbIdx] = dbItem;
+        await idbPut('itemDb', dbItem);
+        showToast('품목DB의 빈 항목이 자동 업데이트되었습니다: ' + item.partNo, 'info', 2500);
+      }
+    }
+  }
   renderItems();
   clearItemForm();
   cancelItemEdit();
@@ -1474,6 +1493,12 @@ function clearVendorForm() {
 function renderVendors() {
   const q = (document.getElementById('vendors-search').value || '').toLowerCase();
   let data = q ? vendors.filter(v => [v.name,v.contact,v.phone,v.email,v.kakao,v.ref,v.mail,v.notes,v.remark].some(f=>String(f||'').toLowerCase().includes(q))) : vendors;
+  const countEl = document.getElementById('vendors-count-display');
+  if (countEl) {
+    countEl.textContent = q
+      ? '총 등록 업체 수: ' + vendors.length + '건 (검색결과: ' + data.length + '건)'
+      : '총 등록 업체 수: ' + vendors.length + '건';
+  }
   const tbody = document.getElementById('vendors-tbody');
   if (!data.length) {
     tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:24px;">데이터가 없습니다</td></tr>';

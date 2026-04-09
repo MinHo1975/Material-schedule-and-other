@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Y&K 소재일정/업체관리</title>
+<title>Y&K 소재일정/업체관리 v8</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;600&family=Bebas+Neue&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -410,8 +410,8 @@ input.row-chk{accent-color:var(--green);width:15px;height:15px;cursor:pointer;ve
   <input type="text" id="company-input" class="form-input" placeholder="회사명 입력" oninput="saveCompany()" style="background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text2);font-size:12px;width:100px;">
   <div class="header-right">
     <button id="sheets-btn" class="btn btn-ghost btn-sm" onclick="openGsModal()">📊 Sheets연동</button>
-    <button id="sync-btn" class="btn btn-ghost btn-sm" onclick="gsSyncAll()" style="display:none;">📤 데이터 내보내기</button>
-    <button id="recover-btn" class="btn btn-ghost btn-sm" onclick="gsRecoverFromSheets()" style="display:none;" title="Sheets에서 데이터 강제 복구">🛟 데이터복구</button>
+    <button id="sync-btn" class="btn btn-ghost btn-sm" onclick="gsSyncAll()" style="display:none;">🔄 동기화</button>
+    <button id="recover-btn" class="btn btn-ghost btn-sm" onclick="gsRecoverFromSheets()" style="display:none;" title="Sheets → 로컬 강제 복구">🛟 데이터복구</button>
     <button class="btn btn-ghost btn-sm" onclick="backupData()">💾 백업</button>
     <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 복원</button>
     <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreData(this)">
@@ -735,6 +735,10 @@ input.row-chk{accent-color:var(--green);width:15px;height:15px;cursor:pointer;ve
     <div class="modal-header"><span class="modal-title">📊 Google Sheets 연동 설정</span><button class="modal-close" onclick="closeModal('gs-modal')">✕</button></div>
     <div class="modal-body">
       <div id="gs-status-banner" class="gs-status-banner gs-status-disconnected">⚪ 연동 미설정</div>
+      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--accent3);line-height:1.7;">
+        🔄 <b>양방향 동기화</b> — 앱 시작 시 자동 Pull, 저장/삭제 시 자동 Push+Pull, [동기화] 버튼으로 즉시 동기화<br>
+        여러 기기에서 사용해도 <b>updatedAt 기준 최신 데이터가 자동 반영</b>됩니다.
+      </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label">Apps Script 웹앱 URL</label>
         <input type="text" id="gs-url-input" class="form-input" placeholder="https://script.google.com/macros/s/...">
@@ -751,6 +755,7 @@ input.row-chk{accent-color:var(--green);width:15px;height:15px;cursor:pointer;ve
         <strong>STEP 3.</strong> 저장 → 배포 → 새 배포 → 웹앱<br>
         <strong>STEP 4.</strong> 액세스: <b>모든 사용자</b> 선택 → 배포<br>
         <strong>STEP 5.</strong> 생성된 URL을 위 입력란에 붙여넣기<br>
+        <b style="color:var(--green);">✅ 기존 Apps Script 재배포 불필요</b> — 기존 URL 그대로 사용 가능<br>
         <div class="gas-code" id="gas-code-display"></div>
         <button class="btn btn-ghost btn-sm" onclick="copyGasCode()">📋 코드 복사</button>
       </div>
@@ -933,8 +938,12 @@ async function init() {
   renderVendors();
   renderItemDb();
   gsLoadSettings();
+  // ★ 앱 시작 시 Sheets에서 자동 Pull (다른 기기 변경사항 반영)
+  gsInitialPull();
   setInterval(updateDateBadge, 60000);
   setInterval(updateCapacityBadge, 8000);
+  // ★ 5분마다 자동 양방향 동기화 (여러 기기 사용 시 주기적 반영)
+  setInterval(() => { if (_gsActive && !_gsAutoSyncRunning) gsAutoSync(); }, 5 * 60 * 1000);
   initDropdownKeyboards();
 }
 
@@ -1527,7 +1536,7 @@ async function deleteItem(id) {
   _itemCheckedIds.delete(id);
   renderItems();
   showToast('삭제되었습니다', 'info');
-  gsAutoSync();
+  gsAutoSyncAfterDelete(); // ★ 삭제: Push만 (Pull 시 되살아남 방지)
 }
 
 // ============================================================
@@ -1602,7 +1611,7 @@ async function deleteCheckedItems() {
   _itemCheckedIds.clear();
   renderItems();
   showToast(ids.length + '건이 삭제되었습니다', 'info');
-  gsAutoSync();
+  gsAutoSyncAfterDelete(); // ★ 삭제: Push만 (Pull 시 되살아남 방지)
 }
 
 function printItems() {
@@ -1747,7 +1756,7 @@ async function deleteVendor(id) {
   await idbDelete('vendors', id);
   renderVendors();
   showToast('삭제되었습니다', 'info');
-  gsAutoSync();
+  gsAutoSyncAfterDelete(); // ★ 삭제: Push만 (Pull 시 되살아남 방지)
 }
 
 function exportVendorsExcel() {
@@ -2165,7 +2174,10 @@ function gsUpdateUI() {
   const syncBtn = document.getElementById('sync-btn');
   const recoverBtn = document.getElementById('recover-btn');
   if (_gsActive) {
-    sheetsBtn.textContent = '🟢 Sheets 연동중';
+    // 마지막 동기화 시간이 없으면 "연동중" 표시
+    if (!/🟢 \d\d:\d\d/.test(sheetsBtn.textContent)) {
+      sheetsBtn.textContent = '🟢 Sheets 연동중';
+    }
     sheetsBtn.classList.add('sheets-active');
     syncBtn.style.display = '';
     recoverBtn.style.display = '';
@@ -2222,14 +2234,31 @@ function gsDisconnect() {
   showToast('연동이 해제되었습니다', 'info');
 }
 
-// 데이터 내보내기 (차분 동기화: ID 기준 추가/수정/삭제만 반영)
+// ──────────────────────────────────────────────────────────────
+// 양방향 동기화 (Pull → Merge → Push)
+// ──────────────────────────────────────────────────────────────
 async function gsSyncAll() {
   if (!_gsActive || !_gsUrl) { showToast('Sheets 연동 설정이 필요합니다', 'error'); return; }
   const syncBtn = document.getElementById('sync-btn');
   const origText = syncBtn.textContent;
-  syncBtn.textContent = '⏳ 내보내는중...'; syncBtn.disabled = true;
+  syncBtn.textContent = '⏳ 동기화중...'; syncBtn.disabled = true;
   try {
-    // 날짜 필드 정규화: 유효하지 않은 날짜는 빈 문자열로 변환
+    // 1) PULL: Sheets 최신 데이터 수신
+    const getRes = await fetch(_gsUrl + '?action=getAll', { method: 'GET' });
+    const remote = await getRes.json();
+    if (remote.error) throw new Error(remote.error);
+
+    // 2) MERGE: 로컬 + 원격 병합 (updatedAt 최신 우선)
+    items   = mergeByUpdated(items,   (remote.items   || []).map(normalizeItem));
+    vendors = mergeByUpdated(vendors, (remote.vendors || []).map(normalizeVendor));
+    itemDb  = mergeByUpdated(itemDb,  (remote.itemDb  || []).map(normalizeDbItem));
+
+    // 3) 로컬 IDB 반영
+    await idbPutAll('items', items);
+    await idbPutAll('vendors', vendors);
+    await idbPutAll('itemDb', itemDb);
+
+    // 4) PUSH: 병합된 전체 데이터를 Sheets에 업로드
     const sanitizedItems = items.map(it => ({
       ...it,
       orderDate: sanitizeDateField(it.orderDate),
@@ -2243,13 +2272,18 @@ async function gsSyncAll() {
     });
     const postData = await postRes.json();
     if (postData.error) throw new Error(postData.error);
-    const r = postData.result || {};
+
+    // 5) UI 갱신
+    renderItems(); renderVendors(); renderItemDb();
     const t = new Date().toTimeString().substr(0, 8);
-    document.getElementById('sheets-btn').textContent = '🟢 ' + t + ' 내보내기';
-    const msg = '내보내기 완료! ✅ 추가 ' + (r.added||0) + '건 · 수정 ' + (r.updated||0) + '건 · 삭제 ' + (r.deleted||0) + '건';
-    showToast(msg, 'success', 4000);
+    document.getElementById('sheets-btn').textContent = '🟢 ' + t + ' 동기화';
+    const r = postData.result || {};
+    showToast('양방향 동기화 완료 ✅  추가 ' + (r.added||0) + '건 · 수정 ' + (r.updated||0) + '건 · 삭제 ' + (r.deleted||0) + '건', 'success', 4000);
   } catch(err) {
-    showToast('내보내기 오류: ' + err.message, 'error', 5000);
+    const msg = (err.message || '').includes('fetch') || (err.message || '').includes('NetworkError')
+      ? '네트워크 오류입니다. Apps Script 배포 설정에서 액세스 권한을 "모든 사용자"로 변경했는지 확인하세요.'
+      : '동기화 오류: ' + err.message;
+    showToast(msg, 'error', 5000);
   } finally {
     syncBtn.textContent = origText; syncBtn.disabled = false;
   }
@@ -2265,9 +2299,9 @@ async function gsRecoverFromSheets() {
     const res = await fetch(_gsUrl + '?action=getAll', { method: 'GET' });
     const remote = await res.json();
     if (remote.error) throw new Error(remote.error);
-    items = (remote.items || []).map(normalizeItem);
+    items   = (remote.items   || []).map(normalizeItem);
     vendors = (remote.vendors || []).map(normalizeVendor);
-    itemDb = (remote.itemDb || []).map(normalizeDbItem);
+    itemDb  = (remote.itemDb  || []).map(normalizeDbItem);
     await idbPutAll('items', items);
     await idbPutAll('vendors', vendors);
     await idbPutAll('itemDb', itemDb);
@@ -2291,34 +2325,115 @@ function normalizeDbItem(r) {
   return { id: r.id || genId(), partNo: String(r.partNo||''), partName: r.partName||'', material: r.material||'', spec: r.spec||'', vendor: r.vendor||'', remark: r.remark||'', createdAt: r.createdAt||new Date().toISOString(), updatedAt: r.updatedAt||'' };
 }
 
-// 백그라운드 자동 동기화 (저장 후 호출, 삭제 후에도 호출)
-async function gsAutoSync() {
-  if (!_gsActive || !_gsUrl || _gsAutoSyncRunning) return;
-  _gsAutoSyncRunning = true;
-  await new Promise(r => setTimeout(r, 1000));
+// ★ 저장 후 자동 동기화: Pull → Merge → Push
+// debounce 방식: 연속 저장 시 마지막 저장 후 800ms 뒤 한 번만 실행
+let _saveDebounceTimer = null;
+function gsAutoSync() {
+  if (!_gsActive || !_gsUrl) return;
+  if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+  _saveDebounceTimer = setTimeout(async () => {
+    _saveDebounceTimer = null;
+    if (_gsAutoSyncRunning) return;
+    _gsAutoSyncRunning = true;
+    try {
+      const getRes = await fetch(_gsUrl + '?action=getAll', { method: 'GET' });
+      const remote = await getRes.json();
+      if (remote.error) throw new Error(remote.error);
+      const mergedItems   = mergeByUpdated(items,   (remote.items   || []).map(normalizeItem));
+      const mergedVendors = mergeByUpdated(vendors, (remote.vendors || []).map(normalizeVendor));
+      const mergedItemDb  = mergeByUpdated(itemDb,  (remote.itemDb  || []).map(normalizeDbItem));
+      const changed = JSON.stringify(mergedItems)   !== JSON.stringify(items)   ||
+                      JSON.stringify(mergedVendors) !== JSON.stringify(vendors) ||
+                      JSON.stringify(mergedItemDb)  !== JSON.stringify(itemDb);
+      items = mergedItems; vendors = mergedVendors; itemDb = mergedItemDb;
+      await idbPutAll('items', items);
+      await idbPutAll('vendors', vendors);
+      await idbPutAll('itemDb', itemDb);
+      if (changed) { renderItems(); renderVendors(); renderItemDb(); }
+      await gsPushOnly();
+    } catch(e) {
+    } finally { _gsAutoSyncRunning = false; }
+  }, 800);
+}
+
+// ★ 삭제 후 자동 동기화: Push만 (Pull 하면 삭제 항목 되살아남)
+// debounce 방식: 연속 삭제 시 마지막 삭제 후 800ms 뒤 한 번만 Push
+let _deleteDebounceTimer = null;
+function gsAutoSyncAfterDelete() {
+  if (!_gsActive || !_gsUrl) return;
+  if (_deleteDebounceTimer) clearTimeout(_deleteDebounceTimer);
+  _deleteDebounceTimer = setTimeout(async () => {
+    _deleteDebounceTimer = null;
+    try {
+      await gsPushOnly();
+    } catch(e) {}
+  }, 800);
+}
+
+// 공통 Push 로직
+async function gsPushOnly() {
+  const sanitizedItems = items.map(it => ({
+    ...it,
+    orderDate: sanitizeDateField(it.orderDate),
+    dueDate:   sanitizeDateField(it.dueDate),
+    workDue:   sanitizeDateField(it.workDue)
+  }));
+  await fetch(_gsUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ items: sanitizedItems, vendors, itemDb })
+  });
+  const t = new Date().toTimeString().substr(0, 8);
+  document.getElementById('sheets-btn').textContent = '🟢 ' + t + ' 동기화';
+}
+
+// 앱 시작 시 Sheets에서 자동 Pull (다른 기기 변경사항 반영)
+async function gsInitialPull() {
+  if (!_gsActive || !_gsUrl) return;
   try {
-    await fetch(_gsUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ items, vendors, itemDb })
-    });
+    const res = await fetch(_gsUrl + '?action=getAll', { method: 'GET' });
+    const remote = await res.json();
+    if (remote.error) return;
+    const mergedItems   = mergeByUpdated(items,   (remote.items   || []).map(normalizeItem));
+    const mergedVendors = mergeByUpdated(vendors, (remote.vendors || []).map(normalizeVendor));
+    const mergedItemDb  = mergeByUpdated(itemDb,  (remote.itemDb  || []).map(normalizeDbItem));
+    const changed = (JSON.stringify(mergedItems) !== JSON.stringify(items)) ||
+                    (JSON.stringify(mergedVendors) !== JSON.stringify(vendors)) ||
+                    (JSON.stringify(mergedItemDb) !== JSON.stringify(itemDb));
+    items = mergedItems; vendors = mergedVendors; itemDb = mergedItemDb;
+    await idbPutAll('items', items);
+    await idbPutAll('vendors', vendors);
+    await idbPutAll('itemDb', itemDb);
+    if (changed) { renderItems(); renderVendors(); renderItemDb(); }
     const t = new Date().toTimeString().substr(0, 8);
     document.getElementById('sheets-btn').textContent = '🟢 ' + t + ' 동기화';
   } catch(e) {
-  } finally { _gsAutoSyncRunning = false; }
+    // 초기 pull 실패는 조용히 무시 (로컬 데이터로 정상 작동)
+  }
 }
 
-// 병합 (createdAt 최신 우선)
-function mergeById(local, remote) {
+// 병합: updatedAt 최신 우선 (없으면 createdAt 사용)
+// 로컬+원격 양쪽에 없는 항목(삭제된 항목)은 로컬 우선으로 제거 반영
+function mergeByUpdated(local, remote) {
   const map = new Map();
+  // 로컬 먼저 등록
   local.forEach(x => map.set(x.id, x));
+  // 원격으로 upsert: updatedAt 더 최신이면 교체
   remote.forEach(x => {
-    if (!map.has(x.id)) { map.set(x.id, x); return; }
-    const ex = map.get(x.id);
-    if (new Date(x.createdAt||0) > new Date(ex.createdAt||0)) map.set(x.id, x);
+    if (!map.has(x.id)) {
+      map.set(x.id, x);
+    } else {
+      const ex = map.get(x.id);
+      const exTs = new Date(ex.updatedAt || ex.createdAt || 0).getTime();
+      const xTs  = new Date(x.updatedAt  || x.createdAt  || 0).getTime();
+      if (xTs > exTs) map.set(x.id, x);
+    }
   });
   return Array.from(map.values());
 }
+
+// 구버전 호환: mergeById 유지
+function mergeById(local, remote) { return mergeByUpdated(local, remote); }
 
 function toggleGuide() {
   const body = document.getElementById('guide-body');

@@ -320,11 +320,11 @@
       background: transparent;
       color: var(--text3);
       font-family: 'Noto Sans KR', sans-serif;
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 20px;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.25s;
-      border-bottom: 2px solid transparent;
+      border-bottom: 3px solid transparent;
     }
 
     .tab-btn.active {
@@ -1167,10 +1167,12 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      pointer-events: none;
     }
 
     #welcome-overlay.show {
       display: flex;
+      pointer-events: auto;
     }
 
     .welcome-card {
@@ -1664,12 +1666,12 @@
       </div>
       <div class="auth-form">
         <div class="form-group">
-          <label class="form-label">아이디</label>
-          <div class="combo-input-wrap" style="position:relative;">
-            <input type="text" id="login-id" class="form-input" placeholder="아이디를 입력하세요" oninput="loginIdInput()"
-              onfocus="openLoginCombo()" onblur="closeLoginCombo()" autocomplete="off">
-            <div id="login-combo" class="login-combo-list"></div>
-          </div>
+		<label class="form-label">아이디</label>
+		<div class="combo-input-wrap" style="position:relative;">
+		  <input type="text" id="login-id" class="form-input" placeholder="아이디를 입력하세요" oninput="loginIdInput()"
+			onclick="openLoginCombo()" onfocus="openLoginCombo()" onblur="closeLoginCombo()" autocomplete="off">
+		  <div id="login-combo" class="login-combo-list"></div>
+		</div>
         </div>
         <div id="auth-user-preview" class="auth-user-preview">
           <img id="auth-preview-img" src="" alt=""><span id="auth-preview-name"
@@ -1836,6 +1838,7 @@
             <button class="btn btn-ghost btn-sm" onclick="printItems()">🖨️ 인쇄</button>
             <button class="btn btn-ghost btn-sm" onclick="exportItemsExcel()">📥 엑셀</button>
             <button class="btn btn-sm btn-header-msg" onclick="generateCheckedItemsMessage()">✅📋 다중메시지 생성</button>
+            <button class="btn btn-sm" style="background:rgba(254,229,0,0.18);color:#f5d400;border:1px solid rgba(254,229,0,0.4);" onclick="openKakaoSendModal()" title="체크된 항목을 카카오톡으로 발송">💬 카카오톡 발송</button>
             <button class="btn btn-ghost btn-sm" onclick="clearItemChecks()" title="체크 전체 해제">☐ 체크초기화</button>
             <button class="btn btn-danger btn-sm" onclick="deleteCheckedItems()" id="btn-delete-checked"
               style="display:none;">🗑 선택삭제</button>
@@ -1849,6 +1852,13 @@
                 oninput="renderItems()">
             </div>
             <button class="btn btn-ghost btn-sm" onclick="clearItemSearch()">초기화</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--text3);white-space:nowrap;">💬 카카오톡이름</span>
+            <input type="text" id="kakao-send-name" class="form-input" placeholder="업체명 매칭 자동입력 or 직접입력"
+              style="width:220px;font-size:12px;padding:5px 9px;"
+              title="업체관리탭의 카카오톡이름과 자동 매칭됩니다. 직접 입력도 가능합니다.">
+            <span style="font-size:11px;color:var(--text3);">← 체크 항목의 소재업체와 업체관리 업체명이 일치하면 자동으로 채워집니다</span>
           </div>
           <div class="tbl-wrap">
             <table class="tbl" id="items-tbl">
@@ -1907,12 +1917,12 @@
                 class="form-input" placeholder="담당자명"></div>
             <div class="form-group"><label class="form-label">전화번호</label><input type="text" id="v-phone"
                 class="form-input" placeholder="01012345678" oninput="formatPhone(this)" maxlength="13"></div>
-            <div class="form-group">
+            <div class="form-group wide">
               <label class="form-label">이메일</label>
               <div style="display:flex;gap:4px;align-items:center;">
-                <input type="text" id="v-email-local" class="form-input" placeholder="계정앞자리" style="flex:1;">
-                <span style="color:var(--text3);font-size:13px;">@</span>
-                <div class="combo-input-wrap" style="flex:1;">
+                <input type="text" id="v-email-local" class="form-input" placeholder="계정앞자리" style="flex:1;min-width:0;">
+                <span style="color:var(--text3);font-size:13px;flex-shrink:0;">@</span>
+                <div class="combo-input-wrap" style="flex:2;min-width:0;">
                   <input type="text" id="v-email-domain" class="form-input" placeholder="도메인 선택 또는 직접 입력"
                     oninput="showEmailDomainOptions(this.value)" onfocus="showEmailDomainOptions(this.value)"
                     onblur="closeEmailDomainOptions()" autocomplete="off">
@@ -1920,6 +1930,8 @@
                 </div>
               </div>
             </div>
+            <div class="form-group"><label class="form-label">카카오톡이름</label><input type="text" id="v-kakao-name"
+                class="form-input" placeholder="카카오톡 프로필명"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0;">
             <div class="form-group"><label class="form-label">카톡내용</label><textarea id="v-kakao" class="form-textarea"
@@ -1975,6 +1987,7 @@
                   <th>담당자</th>
                   <th>전화번호</th>
                   <th>이메일</th>
+                  <th>카카오톡이름</th>
                   <th>카톡내용</th>
                   <th>참고내용</th>
                   <th>메일내용</th>
@@ -2181,6 +2194,44 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('restore-modal')">취소</button>
         <button class="btn btn-danger" id="restore-exec-btn">복원 실행</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KAKAO SEND MODAL -->
+  <div class="modal-overlay" id="kakao-modal">
+    <div class="modal-box wide">
+      <div class="modal-header">
+        <span class="modal-title">💬 카카오톡 발송</span>
+        <button class="modal-close" onclick="closeModal('kakao-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:180px;">
+            <div class="form-label" style="margin-bottom:4px;">받는 사람 (카카오톡이름)</div>
+            <input type="text" id="kakao-modal-name" class="form-input" placeholder="카카오톡 프로필명" style="width:100%;">
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <div class="form-label" style="margin-bottom:4px;">담당자명</div>
+            <input type="text" id="kakao-modal-contact" class="form-input" placeholder="담당자명" style="width:100%;">
+          </div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <div class="form-label" style="margin-bottom:4px;">발송 메시지 미리보기 <span style="color:var(--text3);font-size:10px;">(직접 수정 가능)</span></div>
+          <textarea id="kakao-modal-msg" class="form-textarea" rows="14" style="width:100%;min-height:280px;font-family:'Noto Sans KR',sans-serif;font-size:13px;line-height:1.7;"></textarea>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2);padding:10px 14px;font-size:12px;color:var(--text3);line-height:1.7;">
+          <b style="color:var(--accent3);">📋 발송 방법</b><br>
+          ① 아래 [메시지 복사] 버튼 클릭<br>
+          ② 카카오톡에서 받는 사람 검색 후 대화창 열기<br>
+          ③ 입력창에 Ctrl+V 붙여넣기 후 전송<br>
+          <span style="color:#f5d400;font-size:11px;">💡 자동발송: 카카오톡 대화창 입력란 클릭 후 [🚀 자동발송] 클릭 (kakaobot.py 서버 필요)</span>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="closeModal('kakao-modal')">닫기</button>
+        <button class="btn" style="background:rgba(254,229,0,0.18);color:#f5d400;border:1px solid rgba(254,229,0,0.5);" onclick="kakaoMsgCopy()">📋 메시지 복사</button>
+        <button class="btn btn-primary" onclick="kakaoAutoSend()" title="kakaobot.py 서버 실행 필요&#10;터미널: python kakaobot.py">🚀 자동발송 (로컬서버)</button>
       </div>
     </div>
   </div>
@@ -2949,6 +3000,11 @@
         allChk.indeterminate = !allChk.checked && visibleIds.some(id => _itemCheckedIds.has(id));
       }
       updateDeleteCheckedBtn();
+      // 카카오톡이름 자동 매칭 (수동 입력 없을 때만)
+      if (!document.getElementById('kakao-send-name').value.trim()) {
+        const { kakaoName } = resolveKakaoName();
+        if (kakaoName) document.getElementById('kakao-send-name').value = kakaoName;
+      }
     }
 
     function toggleAllItemChecks(checked) {
@@ -3072,6 +3128,170 @@
       gsAutoSyncAfterDelete(); // ★ 삭제: Push만 (Pull 시 되살아남 방지)
     }
 
+    // ============================================================
+    // KAKAO SEND
+    // ============================================================
+
+    /**
+     * 카카오톡이름 자동 매칭:
+     * 체크된 품목들의 소재업체명과 vendors 배열의 업체명을 비교해서
+     * kakaoName 가져오기. 여러 업체면 첫 번째 매칭.
+     */
+    function resolveKakaoName() {
+      const checkedItems = items.filter(it => _itemCheckedIds.has(it.id));
+      if (!checkedItems.length) return { kakaoName: '', contact: '' };
+      // 첫 번째 체크 품목의 소재업체명으로 vendors 검색
+      const vendorName = checkedItems[0].vendor || '';
+      const matched = vendors.find(v => v.name && v.name.trim() === vendorName.trim());
+      return {
+        kakaoName: matched ? (matched.kakaoName || '') : '',
+        contact: matched ? (matched.contact || '') : ''
+      };
+    }
+
+    /**
+     * 카카오톡 발송 모달 열기
+     */
+    function openKakaoSendModal() {
+      if (_itemCheckedIds.size === 0) {
+        showToast('발송할 품목을 먼저 체크하세요', 'warning');
+        return;
+      }
+
+      // 카카오톡이름 자동 매칭
+      const { kakaoName, contact } = resolveKakaoName();
+      const manualName = document.getElementById('kakao-send-name').value.trim();
+      const finalKakaoName = manualName || kakaoName;
+
+      document.getElementById('kakao-modal-name').value = finalKakaoName;
+      document.getElementById('kakao-modal-contact').value = contact;
+
+      // 메시지 생성
+      refreshKakaoModalMsg();
+
+      // 이름 변경 시 메시지 자동 갱신
+      document.getElementById('kakao-modal-contact').oninput = refreshKakaoModalMsg;
+
+      openModal('kakao-modal');
+    }
+
+    /**
+     * 모달 내 메시지 미리보기 갱신
+     */
+    function refreshKakaoModalMsg() {
+      const contact = document.getElementById('kakao-modal-contact').value.trim() || '담당자';
+      const today = getTodayYMD();
+      const checkedItems = items.filter(it => _itemCheckedIds.has(it.id));
+
+      checkedItems.sort((a, b) => (a.orderDate > b.orderDate ? 1 : -1));
+
+      const itemLines = checkedItems.map((it, idx) => {
+        const num = getCircledNum(idx + 1);
+        const qtyStr = (it.qty !== '' && it.qty !== undefined) ? Number(it.qty).toLocaleString() + '개' : '';
+        const dueStr = it.dueDate ? ' / 납기: ' + it.dueDate : '';
+        return `${num} ${it.partNo || ''} / ${it.partName || ''} / ${it.material || ''} / ${it.spec || ''} / ${qtyStr}${dueStr}`;
+      }).join('\n');
+
+      const msg =
+`${contact}님 수고하십니다.
+남도공업사입니다.
+발주서 첨부합니다.
+(발주서는 카톡으로만 보냈습니다.)
+
+[${today} 발주내역]
+${itemLines}`;
+
+      document.getElementById('kakao-modal-msg').value = msg;
+    }
+
+    /**
+     * 메시지 클립보드 복사
+     */
+    function kakaoMsgCopy() {
+      const msg = document.getElementById('kakao-modal-msg').value;
+      if (!msg) { showToast('메시지가 없습니다', 'warning'); return; }
+      navigator.clipboard.writeText(msg).then(() => {
+        showToast('메시지가 복사되었습니다. 카카오톡에서 Ctrl+V로 붙여넣기 하세요.', 'success');
+      }).catch(() => showToast('복사 실패', 'error'));
+    }
+
+    /**
+     * 카카오톡 자동 발송
+     * - 웹 환경에서는 window.open으로 카카오톡 PC앱 딥링크 시도
+     * - 실제 pyautogui 방식은 로컬 Python 서버 없이 불가하므로
+     *   클립보드 복사 + 카카오톡 검색 가이드 알림으로 처리
+     */
+    async function kakaoAutoSend() {
+      const name = document.getElementById('kakao-modal-name').value.trim();
+      const msg = document.getElementById('kakao-modal-msg').value;
+      if (!name) { showToast('카카오톡이름을 입력하세요', 'warning'); return; }
+      if (!msg) { showToast('메시지가 없습니다', 'warning'); return; }
+
+      // 1) 카카오톡 창이 열려있어야 함 - 사용자에게 안내
+      showToast('카카오톡 대화창을 열고 입력창을 클릭한 상태여야 합니다!', 'warning', 3000);
+
+	// 2) Flask 로컬 서버(kakaobot.py)로 자동발송 요청
+		try {
+			const resp = await fetch('http://localhost:5000/send_kakao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, message: msg }) // name 추가!
+        });
+        if (resp.ok) {
+          showToast('✅ 카카오톡 자동발송 성공!', 'success', 3000);
+          closeModal('kakao-modal');
+        } else {
+          throw new Error('서버 오류 ' + resp.status);
+        }
+      } catch (err) {
+        // 서버 연결 실패 시 → 클립보드 복사 + 안내로 폴백
+        console.warn('kakaobot 서버 연결 실패, 클립보드 폴백:', err.message);
+        navigator.clipboard.writeText(msg).then(() => {
+          showToast('⚠️ 서버 미연결 — 메시지를 클립보드에 복사했습니다', 'warning', 4000);
+        }).catch(() => {
+          showToast('❌ 자동발송 실패. kakaobot.py 서버를 먼저 실행하세요', 'error', 5000);
+        });
+        showKakaoGuide(name);
+      }
+    }
+
+    /**
+     * 카카오톡 자동발송 안내 오버레이
+     */
+    function showKakaoGuide(name) {
+      // 기존 안내 제거
+      const old = document.getElementById('kakao-guide-overlay');
+      if (old) old.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'kakao-guide-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;padding:20px;';
+
+      // 이름에서 연속 두 글자 이상 추출 힌트
+      const hint = name.length >= 2 ? name.substring(0, 2) : name;
+
+      overlay.innerHTML = `
+        <div style="background:var(--bg2);border:1px solid rgba(254,229,0,0.4);border-radius:14px;max-width:420px;width:100%;padding:28px 24px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:12px;">💬</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">카카오톡 발송 준비 완료</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.8;margin-bottom:20px;">
+            메시지가 클립보드에 복사되었습니다.<br>
+            아래 순서대로 진행하세요:
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:14px 16px;text-align:left;font-size:13px;color:var(--text);line-height:2;margin-bottom:20px;">
+            <b style="color:var(--accent3);">① 카카오톡 PC앱</b> 실행 후 <b>친구/채팅 검색</b><br>
+            <b style="color:#f5d400;">② "<span id="kakao-guide-name"></span>"</b> 검색<br>
+            &nbsp;&nbsp;&nbsp;<span style="color:var(--text3);font-size:11px;">※ "<span id="kakao-guide-hint"></span>" 등 연속 두 글자 이상으로 검색하세요</span><br>
+            <b style="color:var(--accent3);">③ 대화창 열고</b> <b>Ctrl+V</b> 붙여넣기 후 전송
+          </div>
+          <button onclick="document.getElementById('kakao-guide-overlay').remove()" style="background:rgba(254,229,0,0.18);color:#f5d400;border:1px solid rgba(254,229,0,0.4);border-radius:6px;padding:9px 28px;font-size:14px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">확인</button>
+        </div>`;
+
+      document.body.appendChild(overlay);
+      document.getElementById('kakao-guide-name').textContent = name;
+      document.getElementById('kakao-guide-hint').textContent = hint;
+    }
+
     function printItems() {
       // 인쇄 헤더 정보 세팅
       const company = document.getElementById('company-input')?.value || 'Y&K';
@@ -3117,6 +3337,7 @@
         contact: document.getElementById('v-contact').value.trim(),
         phone: document.getElementById('v-phone').value.trim(),
         email: emailLocal ? emailLocal + '@' + emailDomain : '',
+        kakaoName: document.getElementById('v-kakao-name').value.trim(),
         kakao: document.getElementById('v-kakao').value.trim(),
         ref: document.getElementById('v-ref').value.trim(),
         mail: document.getElementById('v-mail').value.trim(),
@@ -3149,6 +3370,7 @@
       const emailParts = (v.email || '').split('@');
       document.getElementById('v-email-local').value = emailParts[0] || '';
       if (emailParts[1]) document.getElementById('v-email-domain').value = emailParts[1];
+      document.getElementById('v-kakao-name').value = v.kakaoName || '';
       document.getElementById('v-kakao').value = v.kakao || '';
       document.getElementById('v-ref').value = v.ref || '';
       document.getElementById('v-mail').value = v.mail || '';
@@ -3173,12 +3395,12 @@
     }
 
     function clearVendorForm() {
-      ['v-name', 'v-contact', 'v-phone', 'v-email-local', 'v-kakao', 'v-ref', 'v-mail', 'v-notes', 'v-remark'].forEach(id => document.getElementById(id).value = '');
+      ['v-name', 'v-contact', 'v-phone', 'v-email-local', 'v-kakao-name', 'v-kakao', 'v-ref', 'v-mail', 'v-notes', 'v-remark'].forEach(id => document.getElementById(id).value = '');
     }
 
     function renderVendors() {
       const q = (document.getElementById('vendors-search').value || '').toLowerCase();
-      let data = q ? vendors.filter(v => [v.name, v.contact, v.phone, v.email, v.kakao, v.ref, v.mail, v.notes, v.remark].some(f => String(f || '').toLowerCase().includes(q))) : vendors;
+      let data = q ? vendors.filter(v => [v.name, v.contact, v.phone, v.email, v.kakaoName, v.kakao, v.ref, v.mail, v.notes, v.remark].some(f => String(f || '').toLowerCase().includes(q))) : vendors;
       const countEl = document.getElementById('vendors-count-display');
       if (countEl) {
         countEl.textContent = q
@@ -3187,7 +3409,7 @@
       }
       const tbody = document.getElementById('vendors-tbody');
       if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:24px;">데이터가 없습니다</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:24px;">데이터가 없습니다</td></tr>';
         return;
       }
       tbody.innerHTML = data.map((v, idx) =>
@@ -3197,6 +3419,7 @@
         '<td>' + escHtml(v.contact) + '</td>' +
         '<td><a href="tel:' + escHtml(v.phone) + '" style="color:var(--accent2);">' + escHtml(v.phone) + '</a></td>' +
         '<td>' + escHtml(v.email) + '</td>' +
+        '<td>' + escHtml(v.kakaoName || '') + '</td>' +
         '<td style="max-width:120px;white-space:normal;word-break:break-word;">' + escHtml(truncate(v.kakao, 30)) + '</td>' +
         '<td style="max-width:120px;white-space:normal;">' + escHtml(truncate(v.ref, 30)) + '</td>' +
         '<td style="max-width:120px;white-space:normal;">' + escHtml(truncate(v.mail, 30)) + '</td>' +
@@ -3219,8 +3442,8 @@
 
     function exportVendorsExcel() {
       if (!window.XLSX) { showToast('SheetJS 로드 실패', 'error'); return; }
-      const headers = ['id', '업체명', '담당자', '전화번호', '이메일', '카톡내용', '참고내용', '메일내용', '참고사항', '비고'];
-      const rows = vendors.map(v => [v.id, v.name, v.contact, v.phone, v.email, v.kakao, v.ref, v.mail, v.notes, v.remark]);
+      const headers = ['id', '업체명', '담당자', '전화번호', '이메일', '카카오톡이름', '카톡내용', '참고내용', '메일내용', '참고사항', '비고'];
+      const rows = vendors.map(v => [v.id, v.name, v.contact, v.phone, v.email, v.kakaoName || '', v.kakao, v.ref, v.mail, v.notes, v.remark]);
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '업체관리');
@@ -3237,7 +3460,7 @@
           let count = 0;
           for (let i = 1; i < rows.length; i++) {
             const r = rows[i]; if (!r || !r[1]) continue;
-            const v = { id: r[0] || genId(), name: String(r[1] || ''), contact: String(r[2] || ''), phone: String(r[3] || ''), email: String(r[4] || ''), kakao: String(r[5] || ''), ref: String(r[6] || ''), mail: String(r[7] || ''), notes: String(r[8] || ''), remark: String(r[9] || ''), createdAt: new Date().toISOString() };
+            const v = { id: r[0] || genId(), name: String(r[1] || ''), contact: String(r[2] || ''), phone: String(r[3] || ''), email: String(r[4] || ''), kakaoName: String(r[5] || ''), kakao: String(r[6] || ''), ref: String(r[7] || ''), mail: String(r[8] || ''), notes: String(r[9] || ''), remark: String(r[10] || ''), createdAt: new Date().toISOString() };
             const idx = vendors.findIndex(x => x.id === v.id);
             if (idx >= 0) vendors[idx] = v; else vendors.unshift(v);
             await idbPut('vendors', v); count++;
@@ -3777,7 +4000,7 @@ function ok(data) {
       return { id: r.id || genId(), orderDate: sanitizeDateField(r.orderDate), partNo: String(r.partNo || ''), partName: r.partName || '', material: r.material || '', spec: r.spec || '', qty: r.qty !== '' ? r.qty : '', dueDate: sanitizeDateField(r.dueDate), vendor: r.vendor || '', release: r.release || '', workDue: sanitizeDateField(r.workDue), remark: r.remark || '', createdAt: r.createdAt || new Date().toISOString(), updatedAt: r.updatedAt || '' };
     }
     function normalizeVendor(r) {
-      return { id: r.id || genId(), name: r.name || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '', kakao: r.kakao || '', ref: r.ref || '', mail: r.mail || '', notes: r.notes || '', remark: r.remark || '', createdAt: r.createdAt || new Date().toISOString(), updatedAt: r.updatedAt || '' };
+      return { id: r.id || genId(), name: r.name || '', contact: r.contact || '', phone: r.phone || '', email: r.email || '', kakaoName: r.kakaoName || '', kakao: r.kakao || '', ref: r.ref || '', mail: r.mail || '', notes: r.notes || '', remark: r.remark || '', createdAt: r.createdAt || new Date().toISOString(), updatedAt: r.updatedAt || '' };
     }
     function normalizeDbItem(r) {
       return { id: r.id || genId(), partNo: String(r.partNo || ''), partName: r.partName || '', material: r.material || '', spec: r.spec || '', vendor: r.vendor || '', remark: r.remark || '', createdAt: r.createdAt || new Date().toISOString(), updatedAt: r.updatedAt || '' };
@@ -3921,7 +4144,12 @@ function ok(data) {
       const session = sessionStorage.getItem('loanmgr_session');
       if (session) {
         const user = users.find(u => u.id === session);
-        if (user) { authPass(user); return; }
+        if (user) {
+          document.getElementById('auth-screen').classList.remove('show');
+          document.getElementById('auth-screen').style.display = 'none';
+          authPass(user);
+          return;
+        }
       }
       document.getElementById('auth-screen').classList.add('show');
       renderLoginCombo('');
@@ -3977,7 +4205,9 @@ function ok(data) {
       const err = document.getElementById('auth-error');
       if (user && btoa(pw) === user.pw) {
         _loginFailCount = 0; err.classList.remove('show');
-        document.getElementById('auth-screen').classList.remove('show');
+        const authEl = document.getElementById('auth-screen');
+        authEl.classList.remove('show');
+        authEl.style.display = 'none';
         sessionStorage.setItem('loanmgr_session', id);
         authPass(user);
       } else {
@@ -4006,6 +4236,9 @@ function ok(data) {
       document.getElementById('welcome-name').textContent = user.name + ' 님';
       document.getElementById('welcome-avatar').src = user.photo || defaultAvatar(user.name);
       const card = document.getElementById('welcome-card');
+      const ov = document.getElementById('welcome-overlay');
+      ov.style.pointerEvents = 'auto';
+      ov.style.display = '';
       for (let i = 0; i < 18; i++) {
         const s = document.createElement('div');
         s.className = 'w-star';
@@ -4018,7 +4251,10 @@ function ok(data) {
       setTimeout(closeWelcome, 2800);
     }
     function closeWelcome() {
-      document.getElementById('welcome-overlay').classList.remove('show');
+      const ov = document.getElementById('welcome-overlay');
+      ov.classList.remove('show');
+      ov.style.pointerEvents = 'none';
+      ov.style.display = 'none';
       document.querySelectorAll('.w-star').forEach(s => s.remove());
     }
     function openUserMgr() {

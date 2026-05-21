@@ -3889,14 +3889,23 @@ function diffSync(ss, name, localArr) {
     if (fid) freshIdMap[fid] = r2 + 1;
   }
 
-  // 헤더가 keys와 다르면 헤더 업데이트
+  // 헤더가 keys와 다르면 전체 재작성 (열 추가/변경 시 데이터 어긋남 방지)
   var needHeaderUpdate = false;
   if (freshHeaders.length !== keys.length) { needHeaderUpdate = true; }
   else { keys.forEach(function(k,i){ if (k !== freshHeaders[i]) needHeaderUpdate = true; }); }
   if (needHeaderUpdate) {
-    sh.getRange(1, 1, 1, keys.length).setValues([keys]);
-    freshHeaders = keys;
-    idColFresh = keys.indexOf('id');
+    // 헤더만 업데이트하면 기존 행의 열 위치가 어긋나므로 전체 재작성
+    sh.clearContents(); sh.clearFormats();
+    var rewriteRows = [keys];
+    localArr.forEach(function(obj) {
+      rewriteRows.push(keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); }));
+    });
+    sh.getRange(1, 1, rewriteRows.length, keys.length).setValues(rewriteRows);
+    if (partNoIdx >= 0 && rewriteRows.length > 1) {
+      sh.getRange(1, partNoIdx+1, rewriteRows.length, 1).setNumberFormat('@STRING@');
+    }
+    stats.added = localArr.length;
+    return stats;
   }
 
   // 2) 추가 및 수정

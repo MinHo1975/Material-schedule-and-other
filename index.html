@@ -3809,115 +3809,109 @@ function sheetToObjects(ss, name) {
   });
 }
 
+// 전체 재작성 헬퍼
+function rewriteSheet(sh, keys, localArr, partNoIdx) {
+  sh.clearContents(); sh.clearFormats();
+  var rows = [keys];
+  localArr.forEach(function(obj) {
+    rows.push(keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); }));
+  });
+  sh.getRange(1, 1, rows.length, keys.length).setValues(rows);
+  if (partNoIdx >= 0 && rows.length > 1) {
+    sh.getRange(1, partNoIdx+1, rows.length, 1).setNumberFormat('@STRING@');
+  }
+}
+
 // 차분 동기화 핵심 함수
 function diffSync(ss, name, localArr) {
   var sh = getOrCreateSheet(ss, name);
   var stats = { added: 0, updated: 0, deleted: 0 };
+
+  // 로컬이 비어있으면 시트도 전체 초기화
   if (!localArr || localArr.length === 0) {
-    // 로컬이 비어있으면 시트도 전체 초기화
     sh.clearContents(); sh.clearFormats(); return stats;
   }
+
   var keys = Object.keys(localArr[0]);
   var partNoIdx = keys.indexOf('partNo');
 
-  // 시트 현재 상태 읽기
-  var existingVals = sh.getDataRange().getValues();
-  var sheetEmpty = existingVals.length < 2;
+  // 시트의 실제 데이터 행/열 수 확인 (getDataRange 대신 getLastRow/Col 사용 - 빈 셀 서식 오탐 방지)
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
 
-  if (sheetEmpty) {
-    // 시트가 비어있으면 전체 신규 입력
-    sh.clearContents(); sh.clearFormats();
-    var allRows = [keys];
-    localArr.forEach(function(obj) {
-      allRows.push(keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); }));
-    });
-    sh.getRange(1, 1, allRows.length, keys.length).setValues(allRows);
-    if (partNoIdx >= 0) {
-      sh.getRange(1, partNoIdx+1, allRows.length, 1).setNumberFormat('@STRING@');
-    }
+  // 시트가 완전히 비어있는 상태 → 전체 신규 입력
+  if (lastRow < 1 || lastCol < 1) {
+    rewriteSheet(sh, keys, localArr, partNoIdx);
     stats.added = localArr.length;
     return stats;
   }
 
-  // 시트 헤더 확인 및 동기화
-  var sheetHeaders = existingVals[0].map(String);
-  var idColSheet = sheetHeaders.indexOf('id');
-  if (idColSheet < 0) {
-    // id 컬럼 없으면 전체 재작성
-    sh.clearContents(); sh.clearFormats();
-    var allRows2 = [keys];
-    localArr.forEach(function(obj) {
-      allRows2.push(keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); }));
-    });
-    sh.getRange(1, 1, allRows2.length, keys.length).setValues(allRows2);
-    if (partNoIdx >= 0) {
-      sh.getRange(1, partNoIdx+1, allRows2.length, 1).setNumberFormat('@STRING@');
-    }
+  // 헤더 읽기
+  var sheetHeaders = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+
+  // ★ 헤더 불일치(열 수 다름 or 열 이름 다름) → 즉시 전체 재작성
+  // 삭제/수정보다 먼저 체크해서 순서 버그 방지
+  var headerMismatch = (sheetHeaders.length !== keys.length);
+  if (!headerMismatch) {
+    keys.forEach(function(k, i) { if (k !== sheetHeaders[i]) headerMismatch = true; });
+  }
+  if (headerMismatch) {
+    rewriteSheet(sh, keys, localArr, partNoIdx);
     stats.added = localArr.length;
     return stats;
   }
 
-  // 시트 데이터를 id → 행번호 맵으로 구성 (1-indexed, 헤더=1)
+  // 헤더 일치 확인 후 → id 열 위치 확인
+  var idColIdx = sheetHeaders.indexOf('id');
+  if (idColIdx < 0) {
+    rewriteSheet(sh, keys, localArr, partNoIdx);
+    stats.added = localArr.length;
+    return stats;
+  }
+
+  // 시트 전체 데이터 읽기
+  var allVals = lastRow >= 2 ? sh.getRange(1, 1, lastRow, lastCol).getValues() : [sheetHeaders];
+
+  // id → 행번호 맵 구성
   var sheetIdMap = {};
-  for (var r = 1; r < existingVals.length; r++) {
-    var sid = String(existingVals[r][idColSheet]);
-    if (sid) sheetIdMap[sid] = r + 1; // sheet row number (1-based)
+  for (var r = 1; r < allVals.length; r++) {
+    var sid = String(allVals[r][idColIdx]);
+    if (sid) sheetIdMap[sid] = r + 1; // 1-based sheet row
   }
 
   // 로컬 id 세트
   var localIdSet = {};
   localArr.forEach(function(obj) { if (obj.id) localIdSet[obj.id] = true; });
 
-  // 1) 시트에 있지만 로컬에 없는 행 → 삭제 (뒤에서부터 삭제해야 행 번호 안 밀림)
+  // 1) 시트에 있지만 로컬에 없는 행 → 삭제 (뒤에서부터)
   var rowsToDelete = [];
   Object.keys(sheetIdMap).forEach(function(sid) {
     if (!localIdSet[sid]) rowsToDelete.push(sheetIdMap[sid]);
   });
-  rowsToDelete.sort(function(a,b){return b-a;});
+  rowsToDelete.sort(function(a, b) { return b - a; });
   rowsToDelete.forEach(function(rowNum) {
     sh.deleteRow(rowNum);
     stats.deleted++;
   });
 
-  // 삭제 후 시트 재읽기
-  var freshVals = sh.getDataRange().getValues();
-  var freshHeaders = freshVals.length > 0 ? freshVals[0].map(String) : keys;
-  var idColFresh = freshHeaders.indexOf('id');
+  // 삭제 후 id → 행번호 맵 재구성
+  var currentLastRow = sh.getLastRow();
   var freshIdMap = {};
-  for (var r2 = 1; r2 < freshVals.length; r2++) {
-    var fid = idColFresh >= 0 ? String(freshVals[r2][idColFresh]) : '';
-    if (fid) freshIdMap[fid] = r2 + 1;
-  }
-
-  // 헤더가 keys와 다르면 전체 재작성 (열 추가/변경 시 데이터 어긋남 방지)
-  var needHeaderUpdate = false;
-  if (freshHeaders.length !== keys.length) { needHeaderUpdate = true; }
-  else { keys.forEach(function(k,i){ if (k !== freshHeaders[i]) needHeaderUpdate = true; }); }
-  if (needHeaderUpdate) {
-    // 헤더만 업데이트하면 기존 행의 열 위치가 어긋나므로 전체 재작성
-    sh.clearContents(); sh.clearFormats();
-    var rewriteRows = [keys];
-    localArr.forEach(function(obj) {
-      rewriteRows.push(keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); }));
-    });
-    sh.getRange(1, 1, rewriteRows.length, keys.length).setValues(rewriteRows);
-    if (partNoIdx >= 0 && rewriteRows.length > 1) {
-      sh.getRange(1, partNoIdx+1, rewriteRows.length, 1).setNumberFormat('@STRING@');
+  if (currentLastRow >= 2) {
+    var freshVals = sh.getRange(2, idColIdx + 1, currentLastRow - 1, 1).getValues();
+    for (var r2 = 0; r2 < freshVals.length; r2++) {
+      var fid = String(freshVals[r2][0]);
+      if (fid) freshIdMap[fid] = r2 + 2; // +2: 헤더(1행) + 0-index 보정
     }
-    stats.added = localArr.length;
-    return stats;
   }
 
   // 2) 추가 및 수정
   localArr.forEach(function(obj) {
     var row = keys.map(function(k) { return String(obj[k] !== undefined ? obj[k] : ''); });
     if (freshIdMap[obj.id]) {
-      // 수정: 기존 행 업데이트
-      var rowNum = freshIdMap[obj.id];
-      sh.getRange(rowNum, 1, 1, keys.length).setValues([row]);
+      sh.getRange(freshIdMap[obj.id], 1, 1, keys.length).setValues([row]);
       stats.updated++;
     } else {
-      // 추가: 맨 아래에 행 추가
       sh.appendRow(row);
       stats.added++;
     }
@@ -3927,7 +3921,7 @@ function diffSync(ss, name, localArr) {
   if (partNoIdx >= 0) {
     var totalRows = sh.getLastRow();
     if (totalRows >= 1) {
-      sh.getRange(1, partNoIdx+1, totalRows, 1).setNumberFormat('@STRING@');
+      sh.getRange(1, partNoIdx + 1, totalRows, 1).setNumberFormat('@STRING@');
     }
   }
   return stats;
